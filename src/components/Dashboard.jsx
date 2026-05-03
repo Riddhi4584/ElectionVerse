@@ -84,7 +84,7 @@ const OfficerDashboard = React.memo(function OfficerDashboard({ t }) {
       </motion.div>
     </>
   );
-}
+});
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
