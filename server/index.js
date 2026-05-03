@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import { initDb } from './db.js';
+import { isValidEmail, isValidPassword, isNotEmpty } from './utils/validation.js';
+import { AppError, errorHandler } from './utils/errorHandler.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -32,9 +34,15 @@ async function getUserData(userId) {
 // --- API ROUTES ---
 
 // 1. Register
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', async (req, res, next) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  
+  if (!isValidEmail(email)) {
+    return next(new AppError('Invalid email format', 400, 'INVALID_EMAIL'));
+  }
+  if (!isValidPassword(password)) {
+    return next(new AppError('Password must be at least 6 characters', 400, 'WEAK_PASSWORD'));
+  }
 
   try {
     const result = await db.run(
@@ -42,36 +50,44 @@ app.post('/api/auth/register', async (req, res) => {
       [email, password]
     );
     const user = await getUserData(result.lastID);
-    res.json({ success: true, user });
+    res.status(200).json({ success: true, user });
   } catch (err) {
     if (err.message.includes('UNIQUE constraint failed')) {
-      res.status(400).json({ success: false, error: 'User already exists' });
+      next(new AppError('User already exists', 400, 'USER_EXISTS'));
     } else {
-      res.status(500).json({ success: false, error: err.message });
+      next(err);
     }
   }
 });
 
 // 2. Login
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', async (req, res, next) => {
   const { email, password } = req.body;
   
+  if (!isValidEmail(email) || !isNotEmpty(password)) {
+    return next(new AppError('Invalid email or password', 400, 'INVALID_CREDENTIALS'));
+  }
+
   try {
     const userRow = await db.get('SELECT id FROM users WHERE email = ? AND password = ?', [email, password]);
     if (!userRow) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      return next(new AppError('Invalid email or password', 401, 'UNAUTHORIZED'));
     }
     const user = await getUserData(userRow.id);
-    res.json({ success: true, user });
+    res.status(200).json({ success: true, user });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    next(err);
   }
 });
 
 // 3. Update Onboarding
-app.put('/api/user/onboarding', async (req, res) => {
+app.put('/api/user/onboarding', async (req, res, next) => {
   const { userId, activeRole, language, location } = req.body;
   
+  if (!isNotEmpty(userId) || !isNotEmpty(activeRole)) {
+    return next(new AppError('Missing required fields', 400, 'MISSING_FIELDS'));
+  }
+
   try {
     await db.run(
       `UPDATE users 
@@ -80,23 +96,30 @@ app.put('/api/user/onboarding', async (req, res) => {
       [activeRole, language, location, userId]
     );
     const user = await getUserData(userId);
-    res.json({ success: true, user });
+    res.status(200).json({ success: true, user });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    next(err);
   }
 });
 
 // 4. Mark Step Complete
-app.post('/api/journey/step', async (req, res) => {
+app.post('/api/journey/step', async (req, res, next) => {
   const { userId, stepIndex } = req.body;
   
+  if (!isNotEmpty(userId) || stepIndex === undefined) {
+    return next(new AppError('Missing required fields', 400, 'MISSING_FIELDS'));
+  }
+
   try {
     await db.run(
       'INSERT OR IGNORE INTO user_steps (user_id, step_index) VALUES (?, ?)',
       [userId, stepIndex]
     );
-    res.json({ success: true });
+    res.status(200).json({ success: true });
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    next(err);
   }
 });
+
+// Error handling middleware MUST be added after all routes
+app.use(errorHandler);

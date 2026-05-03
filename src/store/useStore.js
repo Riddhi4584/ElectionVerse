@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { auth, db } from '../lib/firebase';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { api } from '../services/api';
 
 const NOTIF_ITEMS = [
   { id: 1, type: 'warning', title: 'Registration Deadline', desc: 'Voter registration closes in 7 days. Act now!', time: '2h ago', read: false },
@@ -19,24 +17,17 @@ export const useStore = create(
       currentUser: null, // will hold { id, email }
       register: async (email, password) => {
         try {
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          const user = userCredential.user;
-          
-          // Create user document in Firestore
-          const defaultData = {
-            email: user.email,
-            activeRole: 'voter',
-            language: 'en',
-            location: '',
-            onboardingComplete: false,
-            completedSteps: []
-          };
-          await setDoc(doc(db, 'users', user.uid), defaultData);
+          const res = await api.auth.register(email, password);
+          const user = res.user;
           
           set({ 
             isAuthenticated: true, 
-            currentUser: { id: user.uid, email: user.email },
-            ...defaultData
+            currentUser: { id: user.id, email: user.email },
+            activeRole: user.activeRole || 'voter',
+            language: user.language || 'en',
+            location: user.location || '',
+            onboardingComplete: Boolean(user.onboardingComplete),
+            completedSteps: user.completedSteps || []
           });
           return { success: true };
         } catch (err) {
@@ -45,35 +36,25 @@ export const useStore = create(
       },
       login: async (email, password) => {
         try {
-          const userCredential = await signInWithEmailAndPassword(auth, email, password);
-          const user = userCredential.user;
+          const res = await api.auth.login(email, password);
+          const user = res.user;
           
-          // Fetch user data from Firestore
-          const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            set({ 
-              isAuthenticated: true, 
-              currentUser: { id: user.uid, email: user.email },
-              activeRole: data.activeRole || 'voter',
-              language: data.language || 'en',
-              location: data.location || '',
-              onboardingComplete: Boolean(data.onboardingComplete),
-              completedSteps: data.completedSteps || []
-            });
-            return { success: true };
-          } else {
-            return { success: false, error: 'User data not found in database.' };
-          }
+          set({ 
+            isAuthenticated: true, 
+            currentUser: { id: user.id, email: user.email },
+            activeRole: user.activeRole || 'voter',
+            language: user.language || 'en',
+            location: user.location || '',
+            onboardingComplete: Boolean(user.onboardingComplete),
+            completedSteps: user.completedSteps || []
+          });
+          return { success: true };
         } catch (err) {
           return { success: false, error: err.message };
         }
       },
       logout: async () => {
         try {
-          await signOut(auth);
           set({ isAuthenticated: false, currentUser: null, onboardingComplete: false });
         } catch (err) {
           console.error('Failed to log out', err);
@@ -88,14 +69,9 @@ export const useStore = create(
         const state = get();
         if (state.currentUser) {
           try {
-            await updateDoc(doc(db, 'users', state.currentUser.id), {
-              activeRole: state.activeRole,
-              language: state.language,
-              location: state.location,
-              onboardingComplete: true
-            });
+            await api.user.updateOnboarding(state.currentUser.id, state.activeRole, state.language, state.location);
           } catch (e) {
-            console.error('Failed to sync onboarding to Firestore', e);
+            console.error('Failed to sync onboarding', e);
           }
         }
         set({ onboardingComplete: true });
@@ -121,11 +97,9 @@ export const useStore = create(
         const state = get();
         if (state.currentUser && !state.completedSteps.includes(idx)) {
           try {
-            await updateDoc(doc(db, 'users', state.currentUser.id), {
-              completedSteps: arrayUnion(idx)
-            });
+            await api.journey.markStepComplete(state.currentUser.id, idx);
           } catch (e) {
-            console.error('Failed to sync step to Firestore', e);
+            console.error('Failed to sync step', e);
           }
         }
         set((s) => ({

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, ArrowRight, ShieldCheck, Sparkles, UserPlus } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { isValidEmail, isNotEmpty } from '../utils/validation';
 
 export default function LoginView() {
   const { login, register } = useStore();
@@ -13,9 +14,17 @@ export default function LoginView() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) return;
-    
     setErrorMsg('');
+    
+    if (!isValidEmail(email)) {
+      setErrorMsg('Please enter a valid email address');
+      return;
+    }
+    if (!isNotEmpty(password)) {
+      setErrorMsg('Password cannot be empty');
+      return;
+    }
+    
     setIsLoading(true);
     
     try {
@@ -101,34 +110,40 @@ export default function LoginView() {
           </AnimatePresence>
 
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <label htmlFor="email-input" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Email Address
             </label>
             <div className="chat-input-wrap" style={{ borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
               <Mail size={18} color="var(--text-muted)" />
               <input
+                id="email-input"
                 type="email"
                 placeholder="voter@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                aria-label="Email Address"
+                aria-invalid={errorMsg && !isValidEmail(email) ? "true" : "false"}
                 style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 15 }}
               />
             </div>
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <label htmlFor="password-input" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Password
             </label>
             <div className="chat-input-wrap" style={{ borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
               <Lock size={18} color="var(--text-muted)" />
               <input
+                id="password-input"
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                aria-label="Password"
+                aria-invalid={errorMsg && !isNotEmpty(password) ? "true" : "false"}
                 style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 15 }}
               />
             </div>
@@ -145,6 +160,8 @@ export default function LoginView() {
           <motion.button
             type="submit"
             disabled={isLoading || !email || !password}
+            aria-busy={isLoading ? "true" : "false"}
+            aria-label={isRegistering ? 'Create Account' : 'Sign In'}
             whileHover={{ scale: isLoading || !email || !password ? 1 : 1.02 }}
             whileTap={{ scale: isLoading || !email || !password ? 1 : 0.98 }}
             style={{

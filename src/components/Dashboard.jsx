@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import HeroSection from './HeroSection';
 import JourneyMap from './JourneyMap';
@@ -22,7 +22,7 @@ const sectionVariants = {
   visible: (i) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.45, ease: 'easeOut' } }),
 };
 
-function VoterDashboard({ t }) {
+const VoterDashboard = React.memo(function VoterDashboard({ t }) {
   return (
     <>
       <motion.div custom={0} variants={sectionVariants} initial="hidden" animate="visible">
@@ -44,9 +44,9 @@ function VoterDashboard({ t }) {
       </motion.div>
     </>
   );
-}
+});
 
-function CandidateDashboard({ t }) {
+const CandidateDashboard = React.memo(function CandidateDashboard({ t }) {
   return (
     <>
       <motion.div custom={0} variants={sectionVariants} initial="hidden" animate="visible">
@@ -64,9 +64,9 @@ function CandidateDashboard({ t }) {
       </motion.div>
     </>
   );
-}
+});
 
-function OfficerDashboard({ t }) {
+const OfficerDashboard = React.memo(function OfficerDashboard({ t }) {
   return (
     <>
       <motion.div custom={0} variants={sectionVariants} initial="hidden" animate="visible">
@@ -94,7 +94,7 @@ export default function Dashboard() {
   useEffect(() => { const timer = setTimeout(() => setLoading(false), 600); return () => clearTimeout(timer); }, [activeRole]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 28, paddingBottom: 40 }}>
+    <div role="main" aria-label="Dashboard Content" style={{ display: 'flex', flexDirection: 'column', gap: 28, paddingBottom: 40 }}>
       <AnimatePresence mode="wait">
         {loading ? (
           <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
